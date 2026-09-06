@@ -1,6 +1,12 @@
-# RAG in Production — Phase 2: Query, Retrieval & Generation — Where Latency Meets Judgment
+---
+layout: default
+title: "RAG in Production — Phase 2: Query, Retrieval & Generation"
+description: "Phase 2 of a series on turning RAG proofs-of-concept into production-grade systems: query processing, retrieval, re-ranking, context assembly, and generation under a live latency budget."
+---
 
-*Part 2 of a series on turning RAG proofs-of-concept into production-grade systems. [Phase 1](./index.md) built the data backbone — ingestion through storage. Phase 2 picks up the moment a query enters the system and follows it through to the response a user actually reads.*
+# RAG in Production — Phase 2: Query, Retrieval &amp; Generation
+
+<p class="article-meta">Where latency meets judgment — Part 2 of a series on turning RAG proofs-of-concept into production-grade systems. <a href="./rag-production-phase1-data-ingestion-storage.html">Phase 1</a> built the data backbone — ingestion through storage. Phase 2 picks up the moment a query enters the system and follows it through to the response a user actually reads.</p>
 
 ## Same triangle, one new constraint
 
@@ -125,7 +131,10 @@ Phase 2 gets a query from the user's mouth to a validated response — query pro
 
 ---
 
-[← Phase 1: The Data Backbone Nobody Demos](./index.md) &nbsp;|&nbsp; [Back to all articles](../index.md)
+<nav class="pager">
+  <a href="./rag-production-phase1-data-ingestion-storage.html">← Phase 1: The Data Backbone Nobody Demos</a>
+  <a href="../">↑ RAG in Production</a>
+</nav>
 
 ## Comments
 
