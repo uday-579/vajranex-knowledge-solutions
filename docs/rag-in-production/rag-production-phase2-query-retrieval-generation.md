@@ -130,7 +130,7 @@ Phase 2 gets a query from the user's mouth to a validated response — query pro
 ## Comments
 
 <script src="https://giscus.app/client.js"
-        data-repo="uday-579/POCtoProduction-AI-Solutions"
+        data-repo="uday-579/vajranex-knowledge-solutions"
         data-repo-id="R_kgDOUKZfgA"
         data-category="Announcements"
         data-category-id="DIC_kwDOUKZfgM4DEu_R"
