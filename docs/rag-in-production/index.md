@@ -119,7 +119,7 @@ The architecture diagram below maps every component and decision point discussed
 ## Comments
 
 <script src="https://giscus.app/client.js"
-        data-repo="uday-579/POCtoProduction-AI-Solutions"
+        data-repo="uday-579/vajranex-knowledge-solutions"
         data-repo-id="R_kgDOUKZfgA"
         data-category="Announcements"
         data-category-id="DIC_kwDOUKZfgM4DEu_R"
