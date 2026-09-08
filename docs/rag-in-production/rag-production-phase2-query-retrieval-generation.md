@@ -129,6 +129,10 @@ Raw LLM text is not a deliverable; it's an input to a validation step.
 
 Phase 2 gets a query from the user's mouth to a validated response — query processing, retrieval, context assembly, and generation, all under a live latency budget. Phase 3 moves to the layer that wires all nine layers together and watches them: orchestration and caching, retrieval and generation evaluation, tracing that lets you debug a bad answer three hops after it left the vector store, and the input/output guardrails that catch what validation alone doesn't.
 
+<iframe src="rag-architecture-phase2-diagram.html" width="100%" height="700" style="border:1px solid #ddd; border-radius:8px;" title="RAG in Production - Data Flow Architecture Diagram">
+  <p><a href="rag-architecture-phase2-diagram.html">View the architecture diagram</a> (your browser does not support iframes).</p>
+</iframe>
+
 ---
 
 <nav class="pager">
