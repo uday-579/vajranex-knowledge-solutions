@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>RAG Production Architecture — Phase 3: Control, Evaluation &amp; Guardrails</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0d1a1c;
+    --bg-soft: #122327;
+    --panel: #14262a;
+    --line: #24393d;
+    --text: #eeece3;
+    --muted: #8fa3a6;
+
+    --orch: #4fb3d9;
+    --cache: #b38ce8;
+    --eval: #a3c94f;
+    --obs: #e0a23d;
+    --guard: #e86a5c;
+  }
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; background: var(--bg); color: var(--text); font-family: 'Space Grotesk', sans-serif; }
+  .wrap{ max-width: 1180px; margin: 0 auto; padding: 48px 24px 80px; }
+  .masthead{ margin-bottom: 30px; }
+  .masthead .kicker{ font-family:'JetBrains Mono', monospace; font-size:12px; color: var(--muted); letter-spacing:.04em; margin-bottom:10px; }
+  .masthead h1{ font-size: 34px; font-weight: 700; line-height: 1.15; margin: 0 0 10px; max-width: 760px; }
+  .masthead p{ color: var(--muted); font-size: 15.5px; line-height: 1.6; max-width: 680px; margin: 0; }
+
+  .triangle-row{
+    display:flex; align-items:center; gap: 36px; margin: 30px 0 50px;
+    padding: 22px 26px; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 6px; flex-wrap: wrap;
+  }
+  .triforce{ display:flex; gap:10px; flex-shrink:0; flex-wrap:wrap; }
+  .tri-pill{ font-family:'JetBrains Mono', monospace; font-size: 12px; padding: 7px 14px; border-radius: 999px; border: 1px solid currentColor; }
+  .tri-pill.scale{ color: var(--orch); }
+  .tri-pill.resil{ color: var(--cache); }
+  .tri-pill.cost{ color: var(--obs); }
+  .tri-pill.quality{ color: var(--eval); }
+  .tri-pill.security{ color: var(--guard); }
+  .triangle-row .note{ color: var(--muted); font-size: 13.5px; line-height:1.5; }
+
+  .layer{ margin-bottom: 10px; }
+  .layer-head{ display:flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+  .layer-num{
+    font-family:'JetBrains Mono', monospace; font-size: 13px; color: var(--bg); background: var(--accent, var(--orch));
+    width: 26px; height: 26px; border-radius: 50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-weight: 600;
+  }
+  .layer-head h2{ font-size: 19px; font-weight: 600; margin: 0; }
+  .layer-head .tag{ font-family:'JetBrains Mono', monospace; font-size: 11.5px; color: var(--muted); }
+  .band{ background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 4px 4px; }
+  .band svg{ display:block; width:100%; height:auto; }
+
+  .connector{ display:flex; justify-content:center; padding: 6px 0; }
+
+  .subnote{
+    font-family:'JetBrains Mono', monospace; font-size: 12px; color: var(--muted);
+    background: var(--bg-soft); border-left: 3px solid var(--accent2, var(--orch));
+    padding: 10px 14px; margin: 10px 0 18px; line-height:1.55; border-radius: 0 6px 6px 0;
+  }
+
+  .legend{ margin-top: 50px; border-top: 1px solid var(--line); padding-top: 24px; display:flex; flex-wrap:wrap; gap: 22px 30px; }
+  .legend-item{ display:flex; align-items:center; gap: 8px; font-size: 12.5px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+  .legend-item .sw{ width: 12px; height: 12px; border-radius: 3px; flex-shrink:0; }
+  .foot{ margin-top: 30px; color: var(--muted); font-size: 12.5px; font-family: 'JetBrains Mono', monospace; line-height: 1.6; }
+
+  .node-box{ fill: var(--bg-soft); stroke-width: 1.4; rx:7; }
+  .node-title{ fill: var(--text); font-family:'Space Grotesk', sans-serif; font-weight:600; }
+  .node-sub{ fill: var(--muted); font-family:'JetBrains Mono', monospace; }
+  .edge-line{ fill:none; stroke: var(--line); stroke-width: 1.6; }
+  .flow-dot{ filter: drop-shadow(0 0 3px currentColor); }
+  .decision{ fill: var(--bg); stroke-width: 1.4; }
+  .dashed{ stroke-dasharray: 4 4; }
+
+  @media (max-width: 720px){ .masthead h1{ font-size: 26px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="masthead">
+    <div class="kicker">PHASE 3 — CONTINUES FROM: VALIDATED GENERATION</div>
+    <h1>RAG in Production — Phase 3<br>Control, Evaluation &amp; Guardrails</h1>
+    <p>The POC proved the happy path. Production has to prove the pipeline degrades safely, stays inside budget, is measurably working, and cannot be turned against itself — while every one of these controls adds its own latency and cost.</p>
+  </div>
+
+  <div class="triangle-row">
+    <div class="triforce">
+      <span class="tri-pill scale">SCALABILITY</span>
+      <span class="tri-pill resil">RESILIENCE</span>
+      <span class="tri-pill cost">COST / LATENCY</span>
+      <span class="tri-pill quality">QUALITY</span>
+      <span class="tri-pill security">SECURITY</span>
+    </div>
+    <div class="note">Phase 1–2's forces still apply. Phase 3 adds two that are harder to dashboard but impossible to ignore.</div>
+  </div>
+
+  <!-- LAYER 10 -->
+  <div class="layer">
+    <div class="layer-head">
+      <div class="layer-num" style="background:var(--orch)">10</div>
+      <h2>Orchestration &amp; Caching</h2>
+      <span class="tag">execution policy → bounded retry → deadline budget → safe reuse</span>
+    </div>
+    <div class="band"><svg id="svg-orch" viewBox="0 0 1140 460"></svg></div>
+  </div>
+  <div class="subnote" style="--accent2: var(--orch)">The orchestrator knows <em>when</em> a component runs and <em>what happens if it fails</em> — it should never know <em>how</em> that component does its job. Retrieval, generation, caching, and guards stay behind stable interfaces.</div>
+
+  <div class="connector"><svg width="24" height="34" viewBox="0 0 24 34"><path d="M12 2 L12 28" stroke="#3a4d51" stroke-width="2"/><path d="M5 22 L12 30 L19 22" fill="none" stroke="#3a4d51" stroke-width="2"/></svg></div>
+
+  <!-- LAYER 11 -->
+  <div class="layer">
+    <div class="layer-head">
+      <div class="layer-num" style="background:var(--eval)">11</div>
+      <h2>Evaluation &amp; Observability</h2>
+      <span class="tag">operational health ≠ semantic health</span>
+    </div>
+    <div class="band"><svg id="svg-eval" viewBox="0 0 1140 480"></svg></div>
+  </div>
+  <div class="subnote" style="--accent2: var(--eval)">HTTP 200 and P95 latency can be green while groundedness and abstention accuracy quietly collapse. Production needs a parallel quality dashboard, not just an operational one.</div>
+
+  <div class="connector"><svg width="24" height="34" viewBox="0 0 24 34"><path d="M12 2 L12 28" stroke="#3a4d51" stroke-width="2"/><path d="M5 22 L12 30 L19 22" fill="none" stroke="#3a4d51" stroke-width="2"/></svg></div>
+
+  <!-- LAYER 12 -->
+  <div class="layer">
+    <div class="layer-head">
+      <div class="layer-num" style="background:var(--guard)">12</div>
+      <h2>Guardrails</h2>
+      <span class="tag">distributed trust boundaries across the full lifecycle</span>
+    </div>
+    <div class="band"><svg id="svg-guard" viewBox="0 0 1140 360"></svg></div>
+  </div>
+  <div class="subnote" style="--accent2: var(--guard)">Not one prompt-injection filter before the model and one toxicity filter after it. Untrusted or sensitive content can enter through ingestion, user input, retrieved chunks, metadata, history, caches, tools, and output — each is its own boundary.</div>
+
+  <div class="legend">
+    <div class="legend-item"><span class="sw" style="background:var(--orch)"></span> Orchestration</div>
+    <div class="legend-item"><span class="sw" style="background:var(--cache)"></span> Caching</div>
+    <div class="legend-item"><span class="sw" style="background:var(--eval)"></span> Evaluation</div>
+    <div class="legend-item"><span class="sw" style="background:var(--obs)"></span> Observability / Feedback</div>
+    <div class="legend-item"><span class="sw" style="background:var(--guard)"></span> Guardrails</div>
+    <div class="legend-item">⋯ dashed = conditional / risk-routed path</div>
+    <div class="legend-item">◆ diamond = decision point</div>
+  </div>
+
+  <div class="foot">Hover any box for its role. Moving dots trace the direction of execution and data through each layer.</div>
+</div>
+
+<script>
+const NS = "http://www.w3.org/2000/svg";
+
+function el(tag, attrs){
+  const e = document.createElementNS(NS, tag);
+  for(const k in attrs){ e.setAttribute(k, attrs[k]); }
+  return e;
+}
+
+function wrapText(svg, x, y, text, cls, maxWidth, fontSize){
+  const words = text.split(" ");
+  const lines = [];
+  let cur = "";
+  const charBudget = Math.floor(maxWidth / (fontSize*0.56));
+  words.forEach(w=>{
+    if((cur + " " + w).trim().length > charBudget){
+      lines.push(cur.trim()); cur = w;
+    } else {
+      cur = (cur + " " + w).trim();
+    }
+  });
+  if(cur) lines.push(cur);
+  const t = el("text", {x, y: y - (lines.length-1)*(fontSize*0.6), class: cls, "font-size": fontSize, "text-anchor":"middle"});
+  lines.forEach((line, i)=>{
+    const ts = el("tspan", {x, dy: i===0? 0 : fontSize*1.2});
+    ts.textContent = line;
+    t.appendChild(ts);
+  });
+  svg.appendChild(t);
+}
+
+function drawNode(svg, n, color){
+  const g = el("g", {});
+  const box = el("rect", Object.assign({
+    x: n.x, y: n.y, width: n.w, height: n.h,
+    class: "node-box", stroke: color
+  }));
+  g.appendChild(box);
+  const title = el("title", {});
+  title.textContent = n.tooltip || n.label;
+  g.appendChild(title);
+
+  const cx = n.x + n.w/2;
+  wrapText(g, cx, n.y + n.h/2 - (n.sub? 6:0), n.label, "node-title", n.w-16, 12.5);
+  if(n.sub){
+    const subY = n.y + n.h - 12;
+    const st = el("text", {x: cx, y: subY, class:"node-sub", "font-size":10, "text-anchor":"middle"});
+    st.textContent = n.sub;
+    g.appendChild(st);
+  }
+  svg.appendChild(g);
+}
+
+function drawDiamond(svg, n, color){
+  const cx = n.x + n.w/2, cy = n.y + n.h/2;
+  const pts = [
+    [cx, n.y], [n.x+n.w, cy], [cx, n.y+n.h], [n.x, cy]
+  ].map(p=>p.join(",")).join(" ");
+  const poly = el("polygon", {points: pts, class:"decision", stroke: color});
+  svg.appendChild(poly);
+  const title = el("title", {}); title.textContent = n.tooltip || n.label;
+  svg.appendChild(title);
+  wrapText(svg, cx, cy, n.label, "node-sub", n.w-30, 10);
+}
+
+function edgePath(a, b, curve){
+  const dx = (b.x - a.x) * (curve || 0.5);
+  return `M ${a.x} ${a.y} C ${a.x+dx} ${a.y}, ${b.x-dx} ${b.y}, ${b.x} ${b.y}`;
+}
+
+function drawEdge(svg, from, to, opts){
+  opts = opts || {};
+  const path = el("path", {
+    d: edgePath(from, to, opts.curve),
+    class: "edge-line" + (opts.dashed ? " dashed" : "")
+  });
+  const id = "p" + Math.random().toString(36).slice(2,9);
+  path.setAttribute("id", id);
+  svg.appendChild(path);
+
+  if(!opts.noFlow){
+    const dot = el("circle", {r: 3.2, fill: opts.color || "#ffffff", class:"flow-dot"});
+    const anim = el("animateMotion", {dur: opts.dur || "2.6s", repeatCount:"indefinite", begin: opts.delay || "0s"});
+    const mpath = el("mpath", {href: "#"+id});
+    anim.appendChild(mpath);
+    dot.appendChild(anim);
+    svg.appendChild(dot);
+  }
+
+  const ah = el("path", {
+    d: `M ${to.x-6} ${to.y-4} L ${to.x} ${to.y} L ${to.x-6} ${to.y+4}`,
+    fill:"none", stroke: "#3a4d51", "stroke-width":1.6
+  });
+  svg.appendChild(ah);
+}
+
+/* ---------------- LAYER 10: ORCHESTRATION & CACHING ---------------- */
+(function(){
+  const svg = document.getElementById("svg-orch");
+  const color = "#4fb3d9";
+  const cacheColor = "#b38ce8";
+
+  const orchestrator = {x:20, y:190, w:200, h:80, label:"Pipeline Orchestrator", sub:"sequence · state · cancellation", tooltip:"Knows when each component runs and what happens if it fails — never how it internally does its job."};
+
+  const failClass = {x:290, y:20, w:190, h:90, label:"Failure Class?", sub:"transient / permanent / validation / auth", tooltip:"Classify before retrying. A 401 or malformed request should never be hammered three more times."};
+  const retry = {x:560, y:20, w:230, h:70, label:"Bounded Retry + Jitter", sub:"idempotent side effects only", tooltip:"Retry only the transient category. Exponential backoff, bounded attempts, idempotency required."};
+  const noRetry = {x:560, y:110, w:230, h:60, label:"Fail Fast / No Retry", sub:"permanent · validation · auth", tooltip:"Retrying these just multiplies load without changing the outcome."};
+
+  const budget = {x:290, y:230, w:230, h:100, label:"Deadline Budget", sub:"per-stage timeout, not one HTTP timeout", tooltip:"4.0s request budget decomposed: query 0.2s · retrieval 0.8s · assembly 0.2s · generation 2.3s · guards 0.3s · margin 0.2s."};
+  const degrade = {x:590, y:210, w:230, h:130, label:"Graceful Degradation?", sub:"cache/reranker optional · security not", tooltip:"Know what you can safely lose. Cache down → bypass. Reranker down → first-pass ranking. Auth check down → usually must fail closed."};
+
+  const concurrency = {x:290, y:360, w:230, h:80, label:"Bounded Concurrency", sub:"backpressure · rate limit · cancellation", tooltip:"Uncontrolled fan-out turns a latency win into connection exhaustion and a cost spike."};
+  const version = {x:590, y:360, w:230, h:80, label:"Version Everything", sub:"pipeline · prompt · index · model · flags", tooltip:"Without this, two identical queries can behave differently with no reproducible explanation."};
+
+  const cachePolicy = {x:880, y:20, w:230, h:110, label:"Cache Policy", sub:"semantic/exact · key = world that produced the answer", tooltip:"Key includes tenant/auth scope, KB/index version, prompt/model version, locale — not just the query text."};
+  const authCheck = {x:880, y:170, w:230, h:90, label:"Auth/Scope Re-check?", sub:"before serving a hit", tooltip:"A cache hit must never skip the authorization, tenant, or freshness checks a fresh request would run — otherwise the cache becomes a bypass."};
+  const stampede = {x:880, y:300, w:230, h:80, label:"Single-Flight / Coalescing", sub:"stampede protection · jittered TTL", tooltim:"", tooltip:"Protects hot keys from a cache stampede; never caches transient errors or unreviewed hallucinations."};
+
+  drawNode(svg, orchestrator, color);
+  drawEdge(svg, {x:orchestrator.x+orchestrator.w, y:orchestrator.y+30}, {x:failClass.x, y:failClass.y+failClass.h/2}, {color});
+  drawEdge(svg, {x:orchestrator.x+orchestrator.w, y:orchestrator.y+55}, {x:budget.x, y:budget.y+budget.h/2}, {color, delay:"0.4s"});
+  drawEdge(svg, {x:orchestrator.x+orchestrator.w, y:orchestrator.y+70}, {x:concurrency.x, y:concurrency.y+concurrency.h/2}, {color, delay:"0.8s"});
+
+  drawDiamond(svg, failClass, color);
+  drawEdge(svg, {x:failClass.x+failClass.w, y:failClass.y+25}, {x:retry.x, y:retry.y+retry.h/2}, {color});
+  drawEdge(svg, {x:failClass.x+failClass.w, y:failClass.y+65}, {x:noRetry.x, y:noRetry.y+noRetry.h/2}, {color, dashed:true, noFlow:true});
+  drawNode(svg, retry, color);
+  drawNode(svg, noRetry, color);
+
+  drawNode(svg, budget, color);
+  drawEdge(svg, {x:budget.x+budget.w, y:budget.y+budget.h/2}, {x:degrade.x, y:degrade.y+degrade.h/2}, {color});
+  drawDiamond(svg, degrade, color);
+
+  drawNode(svg, concurrency, color);
+  drawEdge(svg, {x:concurrency.x+concurrency.w, y:concurrency.y+concurrency.h/2}, {x:version.x, y:version.y+version.h/2}, {color, dashed:true, noFlow:true});
+  drawNode(svg, version, color);
+
+  drawEdge(svg, {x:degrade.x+degrade.w, y:degrade.y+degrade.h/2}, {x:cachePolicy.x, y:cachePolicy.y+cachePolicy.h/2}, {color:cacheColor, delay:"0.3s"});
+  drawNode(svg, cachePolicy, cacheColor);
+  drawEdge(svg, {x:cachePolicy.x+cachePolicy.w/2, y:cachePolicy.y+cachePolicy.h}, {x:authCheck.x+authCheck.w/2, y:authCheck.y}, {color:cacheColor});
+  drawDiamond(svg, authCheck, cacheColor);
+  drawEdge(svg, {x:authCheck.x+authCheck.w/2, y:authCheck.y+authCheck.h}, {x:stampede.x+stampede.w/2, y:stampede.y}, {color:cacheColor, dashed:true, noFlow:true});
+  drawNode(svg, stampede, cacheColor);
+})();
+
+/* ---------------- LAYER 11: EVALUATION & OBSERVABILITY ---------------- */
+(function(){
+  const svg = document.getElementById("svg-eval");
+  const color = "#a3c94f";
+  const obsColor = "#e0a23d";
+
+  const retrievalEval = {x:20, y:20, w:230, h:100, label:"Retrieval Evaluator", sub:"Precision@K · Recall@K · MRR/NDCG · negatives", tooltip:"Includes answerable AND unanswerable queries — a retriever that always returns something is not robust."};
+  const genEval = {x:20, y:150, w:230, h:120, label:"Generation Evaluator", sub:"groundedness · correctness · relevance · citations · abstention", tooltip:"Grounded ≠ correct. Each dimension is scored separately — one aggregate score hides which one broke."};
+  const slices = {x:20, y:300, w:230, h:90, label:"Sliced Evaluation", sub:"query type · language · domain · risk tier", tooltip:"An overall 92% can hide unanswerable-query accuracy at 54%. Slice, don't average."};
+
+  const judge = {x:320, y:80, w:210, h:90, label:"LLM-as-Judge", sub:"one signal, not ground truth", tooltip:"Version the judge model + rubric. Calibrate against a human-reviewed sample. Use domain experts for high-risk slices."};
+
+  const tracing = {x:600, y:180, w:240, h:110, label:"Tracing / Metrics Hub", sub:"trace_id · versions · latency · tokens · cost · guard decisions", tooltip:"Selective, policy-governed capture — not 'log everything', which turns observability into a second uncontrolled copy of the knowledge base."};
+
+  const feedback = {x:600, y:20, w:240, h:100, label:"Feedback Loop", sub:"classify → validate → dedupe → route", tooltip:"Thumbs-down is a symptom, not a label. Treated as untrusted, noisy input — never fed straight into fine-tuning."};
+
+  const regression = {x:900, y:100, w:210, h:90, label:"Regression Suite", sub:"candidate vs. production baseline", tooltip:"Run before every meaningful pipeline, prompt, model, or threshold change."};
+  const shadow = {x:900, y:220, w:210, h:80, label:"Shadow / Canary", sub:"real traffic, hidden from users", tooltip:"For larger changes — compare quality, latency, cost, and guardrail behavior before shifting traffic."};
+  const gate = {x:900, y:330, w:210, h:80, label:"Release Gate", sub:"risk-specific thresholds", tooltip:"A customer FAQ and a compliance assistant should not share the same tolerance for unsupported claims."};
+
+  [retrievalEval, genEval, slices].forEach(n=>drawNode(svg, n, color));
+  drawEdge(svg, {x:retrievalEval.x+retrievalEval.w, y:retrievalEval.y+retrievalEval.h/2}, {x:judge.x, y:judge.y+30}, {color});
+  drawEdge(svg, {x:genEval.x+genEval.w, y:genEval.y+genEval.h/2}, {x:judge.x, y:judge.y+55}, {color, delay:"0.4s"});
+  drawEdge(svg, {x:slices.x+slices.w, y:slices.y+slices.h/2}, {x:judge.x, y:judge.y+80}, {color, dashed:true, noFlow:true});
+  drawNode(svg, judge, color);
+
+  drawEdge(svg, {x:judge.x+judge.w, y:judge.y+judge.h/2}, {x:tracing.x, y:tracing.y+40}, {color:obsColor});
+  drawNode(svg, feedback, obsColor);
+  drawEdge(svg, {x:feedback.x+feedback.w, y:feedback.y+feedback.h/2}, {x:tracing.x, y:tracing.y+70}, {color:obsColor, delay:"0.5s"});
+  drawNode(svg, tracing, obsColor);
+
+  drawEdge(svg, {x:tracing.x+tracing.w, y:tracing.y+30}, {x:regression.x, y:regression.y+regression.h/2}, {color:obsColor});
+  drawNode(svg, regression, obsColor);
+  drawEdge(svg, {x:regression.x+regression.w/2, y:regression.y+regression.h}, {x:shadow.x+shadow.w/2, y:shadow.y}, {color:obsColor});
+  drawNode(svg, shadow, obsColor);
+  drawEdge(svg, {x:shadow.x+shadow.w/2, y:shadow.y+shadow.h}, {x:gate.x+gate.w/2, y:gate.y}, {color:obsColor});
+  drawNode(svg, gate, obsColor);
+
+  // feedback loop back to sliced eval (curated cases)
+  drawEdge(svg, {x:feedback.x, y:feedback.y+feedback.h/2}, {x:slices.x+slices.w, y:slices.y+20}, {color:obsColor, dashed:true, noFlow:true, curve:0.6});
+})();
+
+/* ---------------- LAYER 12: GUARDRAILS ---------------- */
+(function(){
+  const svg = document.getElementById("svg-guard");
+  const color = "#e86a5c";
+
+  const label = {x:20, y:150, w:170, h:60, label:"Distributed across the lifecycle", sub:"not two filters", tooltip:"Untrusted or sensitive content can enter through ingestion, input, retrieved context, metadata, history, caches, tools, and output."};
+
+  const ingestion = {x:250, y:20, w:200, h:110, label:"Ingestion Guard", sub:"source trust · poisoning scan · ACL validation", tooltip:"Stops persistent poisoning before it becomes retrievable — quarantine questionable material rather than rediscovering it on every query."};
+  const input = {x:250, y:150, w:200, h:110, label:"Input Guard", sub:"direct injection · jailbreak · PII · rate limits", tooltip:"Keyword blocking alone is not a security boundary — attackers paraphrase, encode, and split across turns."};
+  const context = {x:250, y:280, w:200, h:60, label:"Context Guard", sub:"indirect injection · provenance", tooltip:"Retrieved content is data, never trusted instructions. A perfectly innocent query can retrieve a poisoned document."};
+
+  const authOutside = {x:530, y:150, w:220, h:90, label:"Authorization Enforced Outside the LLM", sub:"ACL-filtered retrieval, not a system prompt", tooltip:"\"Only use documents this user may see\" in a system prompt is not a substitute for ACL-filtered retrieval."};
+
+  const output = {x:820, y:150, w:230, h:120, label:"Output Guard", sub:"PII/secrets · groundedness · citations · safe markdown", tooltip:"Safe language ≠ safe answer. Also: don't blindly redact — ask 'is this disclosure allowed for this user/purpose/policy?'"};
+
+  const evalGuards = {x:820, y:20, w:230, h:90, label:"Guardrails Have Their Own Eval", sub:"false pos/neg · injection · leakage · cross-tenant", tooltip:"Version guard policies alongside the pipeline. Rerun security regression whenever relevant components change."};
+
+  const failPolicy = {x:820, y:290, w:230, h:60, label:"Fail-Closed vs. Degrade", sub:"critical vs. optional vs. telemetry", tooltip:"Critical auth/security check unavailable → fail closed. Optional quality check → degrade+alert. Telemetry → continue+alert."};
+
+  drawNode(svg, label, color);
+  drawNode(svg, ingestion, color);
+  drawNode(svg, input, color);
+  drawNode(svg, context, color);
+
+  drawEdge(svg, {x:input.x+input.w, y:input.y+input.h/2}, {x:authOutside.x, y:authOutside.y+30}, {color});
+  drawEdge(svg, {x:context.x+context.w, y:context.y+context.h/2}, {x:authOutside.x, y:authOutside.y+60}, {color, delay:"0.4s"});
+  drawNode(svg, authOutside, color);
+
+  drawEdge(svg, {x:authOutside.x+authOutside.w, y:authOutside.y+authOutside.h/2}, {x:output.x, y:output.y+output.h/2}, {color});
+  drawNode(svg, output, color);
+  drawEdge(svg, {x:output.x+output.w/2, y:output.y}, {x:evalGuards.x+evalGuards.w/2, y:evalGuards.y+evalGuards.h}, {color, dashed:true, noFlow:true});
+  drawNode(svg, evalGuards, color);
+  drawEdge(svg, {x:output.x+output.w/2, y:output.y+output.h}, {x:failPolicy.x+failPolicy.w/2, y:failPolicy.y}, {color, dashed:true, noFlow:true});
+  drawNode(svg, failPolicy, color);
+
+  drawEdge(svg, {x:ingestion.x+ingestion.w, y:ingestion.y+ingestion.h/2}, {x:evalGuards.x, y:evalGuards.y+evalGuards.h/2}, {color, dashed:true, noFlow:true, curve:0.6});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>RAG Production Architecture — End-to-End</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0d1a1c;
+    --bg-soft: #122327;
+    --panel: #14262a;
+    --line: #24393d;
+    --text: #eeece3;
+    --muted: #8fa3a6;
+
+    --k: #4fd1ae;     /* knowledge flow */
+    --r: #d9497a;     /* request flow */
+    --orch: #4fb3d9;
+    --cache: #b38ce8;
+    --eval: #a3c94f;
+    --obs: #e0a23d;
+    --guard: #e86a5c;
+  }
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; background: var(--bg); color: var(--text); font-family: 'Space Grotesk', sans-serif; }
+  .wrap{ max-width: 1180px; margin: 0 auto; padding: 48px 24px 80px; }
+  .masthead{ margin-bottom: 30px; }
+  .masthead .kicker{ font-family:'JetBrains Mono', monospace; font-size:12px; color: var(--muted); letter-spacing:.04em; margin-bottom:10px; }
+  .masthead h1{ font-size: 34px; font-weight: 700; line-height: 1.15; margin: 0 0 10px; max-width: 760px; }
+  .masthead p{ color: var(--muted); font-size: 15.5px; line-height: 1.6; max-width: 700px; margin: 0; }
+
+  .triangle-row{
+    display:flex; align-items:center; gap: 36px; margin: 30px 0 50px;
+    padding: 22px 26px; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 6px; flex-wrap: wrap;
+  }
+  .triforce{ display:flex; gap:10px; flex-shrink:0; flex-wrap:wrap; }
+  .tri-pill{ font-family:'JetBrains Mono', monospace; font-size: 12px; padding: 7px 14px; border-radius: 999px; border: 1px solid currentColor; }
+  .tri-pill.k{ color: var(--k); }
+  .tri-pill.r{ color: var(--r); }
+  .tri-pill.eval{ color: var(--eval); }
+  .tri-pill.guard{ color: var(--guard); }
+  .triangle-row .note{ color: var(--muted); font-size: 13.5px; line-height:1.5; }
+
+  .layer{ margin-bottom: 10px; }
+  .layer-head{ display:flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+  .layer-num{
+    font-family:'JetBrains Mono', monospace; font-size: 13px; color: var(--bg); background: var(--accent, var(--k));
+    width: 26px; height: 26px; border-radius: 50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-weight: 600;
+  }
+  .layer-head h2{ font-size: 19px; font-weight: 600; margin: 0; }
+  .layer-head .tag{ font-family:'JetBrains Mono', monospace; font-size: 11.5px; color: var(--muted); }
+  .band{ background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 4px 4px; }
+  .band svg{ display:block; width:100%; height:auto; }
+
+  .connector{ display:flex; justify-content:center; padding: 6px 0; }
+
+  .note-block{
+    font-family:'JetBrains Mono', monospace; font-size: 12px; color: var(--muted);
+    background: var(--bg-soft); border-left: 3px solid var(--eval);
+    padding: 14px 18px; margin: 30px 0; line-height:1.6; border-radius: 0 6px 6px 0;
+  }
+  .note-block b{ color: var(--text); }
+
+  .legend{ margin-top: 50px; border-top: 1px solid var(--line); padding-top: 24px; display:flex; flex-wrap:wrap; gap: 22px 30px; }
+  .legend-item{ display:flex; align-items:center; gap: 8px; font-size: 12.5px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+  .legend-item .sw{ width: 12px; height: 12px; border-radius: 3px; flex-shrink:0; }
+  .foot{ margin-top: 30px; color: var(--muted); font-size: 12.5px; font-family: 'JetBrains Mono', monospace; line-height: 1.6; }
+
+  .node-box{ fill: var(--bg-soft); stroke-width: 1.4; rx:7; }
+  .node-title{ fill: var(--text); font-family:'Space Grotesk', sans-serif; font-weight:600; }
+  .node-sub{ fill: var(--muted); font-family:'JetBrains Mono', monospace; }
+  .edge-line{ fill:none; stroke: var(--line); stroke-width: 1.6; }
+  .flow-dot{ filter: drop-shadow(0 0 3px currentColor); }
+  .decision{ fill: var(--bg); stroke-width: 1.4; }
+  .dashed{ stroke-dasharray: 4 4; }
+
+  @media (max-width: 720px){ .masthead h1{ font-size: 26px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="masthead">
+    <div class="kicker">FULL SERIES — PHASE 1 + PHASE 2 + PHASE 3 · TWELVE LAYERS, ONE FLOW</div>
+    <h1>RAG in Production<br>End-to-End Architecture</h1>
+    <p>One continuous path from source document to approved response — the offline knowledge flow, the online request flow, the guardrails distributed across both, and the evaluation/observability loop that watches the whole thing.</p>
+  </div>
+
+  <div class="triangle-row">
+    <div class="triforce">
+      <span class="tri-pill k">KNOWLEDGE FLOW</span>
+      <span class="tri-pill r">REQUEST FLOW</span>
+      <span class="tri-pill eval">QUALITY LOOP</span>
+      <span class="tri-pill guard">TRUST BOUNDARIES</span>
+    </div>
+    <div class="note">A request is not successful merely because the API returned 200 — evidence must be authorized, the answer sufficiently grounded, execution inside budget, and disclosure policy-compliant.</div>
+  </div>
+
+  <!-- OFFLINE KNOWLEDGE FLOW -->
+  <div class="layer">
+    <div class="layer-head">
+      <div class="layer-num" style="background:var(--k)">1–5</div>
+      <h2>Offline Knowledge Flow</h2>
+      <span class="tag">source → parse → guard → chunk → embed → index</span>
+    </div>
+    <div class="band"><svg id="svg-knowledge" viewBox="0 0 1140 200"></svg></div>
+  </div>
+
+  <div class="connector"><svg width="24" height="34" viewBox="0 0 24 34"><path d="M12 2 L12 28" stroke="#3a4d51" stroke-width="2"/><path d="M5 22 L12 30 L19 22" fill="none" stroke="#3a4d51" stroke-width="2"/></svg></div>
+
+  <!-- ONLINE REQUEST FLOW -->
+  <div class="layer">
+    <div class="layer-head">
+      <div class="layer-num" style="background:var(--r)">6–9 / 10 / 12</div>
+      <h2>Online Request Flow</h2>
+      <span class="tag">user → authenticated context → orchestrated pipeline → approved response</span>
+    </div>
+    <div class="band"><svg id="svg-request" viewBox="0 0 1140 360"></svg></div>
+  </div>
+
+  <div class="connector"><svg width="24" height="34" viewBox="0 0 24 34"><path d="M12 2 L12 28" stroke="#3a4d51" stroke-width="2"/><path d="M5 22 L12 30 L19 22" fill="none" stroke="#3a4d51" stroke-width="2"/></svg></div>
+
+  <!-- CONTINUOUS LOOP -->
+  <div class="layer">
+    <div class="layer-head">
+      <div class="layer-num" style="background:var(--eval)">11</div>
+      <h2>Continuous Quality &amp; Operations Loop</h2>
+      <span class="tag">surrounds both flows — closes back into orchestration and generation</span>
+    </div>
+    <div class="band"><svg id="svg-loop" viewBox="0 0 1140 220"></svg></div>
+  </div>
+
+  <div class="note-block"><b>End-to-end invariant:</b> the evidence must be authorized and relevant, the answer sufficiently grounded/correct for the use case, execution must stay inside reliability and cost budgets, and the final disclosure must satisfy policy — all four, on every request, not just the ones a demo happens to exercise.</div>
+
+  <div class="legend">
+    <div class="legend-item"><span class="sw" style="background:var(--k)"></span> Phase 1 · Knowledge flow</div>
+    <div class="legend-item"><span class="sw" style="background:var(--r)"></span> Phase 2 · Request flow</div>
+    <div class="legend-item"><span class="sw" style="background:var(--orch)"></span> Phase 3 · Orchestration/Cache</div>
+    <div class="legend-item"><span class="sw" style="background:var(--eval)"></span> Evaluation / Observability</div>
+    <div class="legend-item"><span class="sw" style="background:var(--guard)"></span> Guardrails (distributed)</div>
+    <div class="legend-item">⋯ dashed = feedback / conditional path</div>
+  </div>
+
+  <div class="foot">Hover any box for its role. Moving dots trace execution and data direction through the full pipeline.</div>
+</div>
+
+<script>
+const NS = "http://www.w3.org/2000/svg";
+function el(tag, attrs){ const e = document.createElementNS(NS, tag); for(const k in attrs){ e.setAttribute(k, attrs[k]); } return e; }
+function wrapText(svg, x, y, text, cls, maxWidth, fontSize){
+  const words = text.split(" "); const lines = []; let cur = "";
+  const charBudget = Math.floor(maxWidth / (fontSize*0.56));
+  words.forEach(w=>{ if((cur + " " + w).trim().length > charBudget){ lines.push(cur.trim()); cur = w; } else { cur = (cur + " " + w).trim(); } });
+  if(cur) lines.push(cur);
+  const t = el("text", {x, y: y - (lines.length-1)*(fontSize*0.6), class: cls, "font-size": fontSize, "text-anchor":"middle"});
+  lines.forEach((line, i)=>{ const ts = el("tspan", {x, dy: i===0? 0 : fontSize*1.2}); ts.textContent = line; t.appendChild(ts); });
+  svg.appendChild(t);
+}
+function drawNode(svg, n, color){
+  const g = el("g", {});
+  const box = el("rect", Object.assign({ x: n.x, y: n.y, width: n.w, height: n.h, class: "node-box", stroke: color }));
+  g.appendChild(box);
+  const title = el("title", {}); title.textContent = n.tooltip || n.label; g.appendChild(title);
+  const cx = n.x + n.w/2;
+  wrapText(g, cx, n.y + n.h/2 - (n.sub? 6:0), n.label, "node-title", n.w-16, 12.5);
+  if(n.sub){ const subY = n.y + n.h - 12; const st = el("text", {x: cx, y: subY, class:"node-sub", "font-size":10, "text-anchor":"middle"}); st.textContent = n.sub; g.appendChild(st); }
+  svg.appendChild(g);
+}
+function drawDiamond(svg, n, color){
+  const cx = n.x + n.w/2, cy = n.y + n.h/2;
+  const pts = [[cx, n.y], [n.x+n.w, cy], [cx, n.y+n.h], [n.x, cy]].map(p=>p.join(",")).join(" ");
+  const poly = el("polygon", {points: pts, class:"decision", stroke: color}); svg.appendChild(poly);
+  const title = el("title", {}); title.textContent = n.tooltip || n.label; svg.appendChild(title);
+  wrapText(svg, cx, cy, n.label, "node-sub", n.w-30, 10);
+}
+function edgePath(a, b, curve){ const dx = (b.x - a.x) * (curve || 0.5); return `M ${a.x} ${a.y} C ${a.x+dx} ${a.y}, ${b.x-dx} ${b.y}, ${b.x} ${b.y}`; }
+function drawEdge(svg, from, to, opts){
+  opts = opts || {};
+  const path = el("path", { d: edgePath(from, to, opts.curve), class: "edge-line" + (opts.dashed ? " dashed" : "") });
+  const id = "p" + Math.random().toString(36).slice(2,9); path.setAttribute("id", id); svg.appendChild(path);
+  if(!opts.noFlow){
+    const dot = el("circle", {r: 3.2, fill: opts.color || "#ffffff", class:"flow-dot"});
+    const anim = el("animateMotion", {dur: opts.dur || "2.6s", repeatCount:"indefinite", begin: opts.delay || "0s"});
+    const mpath = el("mpath", {href: "#"+id}); anim.appendChild(mpath); dot.appendChild(anim); svg.appendChild(dot);
+  }
+  const ah = el("path", { d: `M ${to.x-6} ${to.y-4} L ${to.x} ${to.y} L ${to.x-6} ${to.y+4}`, fill:"none", stroke: "#3a4d51", "stroke-width":1.6 });
+  svg.appendChild(ah);
+}
+
+/* ---------------- OFFLINE KNOWLEDGE FLOW (LAYERS 1–5 + INGESTION GUARD) ---------------- */
+(function(){
+  const svg = document.getElementById("svg-knowledge");
+  const color = "#4fd1ae";
+  const guardColor = "#e86a5c";
+  const nodes = [
+    {x:10,  y:60, w:150, h:70, label:"1 · Sources / Ingestion", sub:"connectors + triggers", tooltip:"Phase 1 — source connectors, change detection, raw data store."},
+    {x:195, y:60, w:150, h:70, label:"2 · Parse / Extract", sub:"route → extract → classify", tooltip:"Phase 1 — file-type routing, schema extraction, human-in-the-loop on missing fields."},
+    {x:380, y:50, w:150, h:90, label:"Ingestion Guard", sub:"poisoning · ACL validation", tooltip:"Phase 3 — quarantines malicious or unvalidated content before it can ever be retrieved.", guard:true},
+    {x:565, y:60, w:150, h:70, label:"3 · Clean / Chunk", sub:"chunk() interface", tooltip:"Phase 1 — dedup, normalize, tag with parent id + section headers."},
+    {x:750, y:60, w:150, h:70, label:"4 · Embed", sub:"adapter + batch processor", tooltip:"Phase 1 — model-agnostic adapter, retries, rate limits."},
+    {x:935, y:60, w:190, h:70, label:"5 · Store / Index", sub:"vector + doc + metadata / unified", tooltip:"Phase 1 — permission-aware, searchable index. This is what Layer 7 retrieval reads from."}
+  ];
+  for(let i=0;i<nodes.length-1;i++){
+    const a = nodes[i], b = nodes[i+1];
+    drawEdge(svg, {x:a.x+a.w, y:a.y+a.h/2}, {x:b.x, y:b.y+b.h/2}, {color: a.guard?guardColor:color});
+  }
+  nodes.forEach(n=>drawNode(svg, n, n.guard?guardColor:color));
+})();
+
+/* ---------------- ONLINE REQUEST FLOW (LAYERS 6–9, ORCHESTRATION, GUARDS) ---------------- */
+(function(){
+  const svg = document.getElementById("svg-request");
+  const r = "#d9497a", orch="#4fb3d9", guard="#e86a5c";
+
+  const user = {x:10, y:150, w:120, h:60, label:"User", sub:"+ app identity", tooltip:"Entry point — request carries claimed identity and application context."};
+  const inputGuard = {x:170, y:140, w:170, h:80, label:"Input Guard", sub:"injection · jailbreak · PII · limits", tooltip:"First trust boundary — not sufficient alone, but necessary."};
+  const orchestrator = {x:380, y:20, w:220, h:90, label:"10 · Orchestrator + Cache", sub:"deadline · retry ownership · degrade · cache-if-authorized", tooltip:"Phase 3 — a cache hit must never skip the auth/tenant/freshness checks a fresh request would run."};
+
+  const query = {x:380, y:150, w:150, h:70, label:"6 · Query Processing", sub:"fuse history · rewrite/HyDE", tooltip:"Phase 2 — coreference resolution, condensation, routed rewrite."};
+  const retrieval = {x:565, y:150, w:150, h:70, label:"7 · Retrieval", sub:"vector/BM25/hybrid + ACL filter", tooltip:"Phase 2 — pre/post-filter by tenant, then cross-encoder rerank."};
+  const contextGuard = {x:750, y:140, w:160, h:80, label:"Context Guard", sub:"indirect injection · provenance", tooltip:"Phase 3 — retrieved content is data, never trusted instructions."};
+
+  const assembly = {x:380, y:270, w:150, h:70, label:"8 · Context Assembly", sub:"dedupe · order · compress", tooltip:"Phase 2 — fights lost-in-the-middle, fits the token budget."};
+  const generation = {x:565, y:270, w:150, h:70, label:"9 · Generation", sub:"model adapter · parse · validate", tooltip:"Phase 2 — cascade routing: small model drafts, frontier escalates on low confidence."};
+  const outputGuard = {x:750, y:260, w:160, h:90, label:"Output Guard", sub:"PII/secrets · groundedness · citations", tooltip:"Phase 3 — safe language is not the same as a safe or authorized answer."};
+
+  const response = {x:955, y:200, w:170, h:70, label:"Approved Response", sub:"", tooltip:"Only reached once retrieval, generation, and every guard agree the answer may be released."};
+
+  drawNode(svg, user, r);
+  drawEdge(svg, {x:user.x+user.w, y:user.y+user.h/2}, {x:inputGuard.x, y:inputGuard.y+inputGuard.h/2}, {color:guard});
+  drawNode(svg, inputGuard, guard);
+
+  drawEdge(svg, {x:inputGuard.x+inputGuard.w, y:inputGuard.y+30}, {x:orchestrator.x, y:orchestrator.y+orchestrator.h/2}, {color:orch});
+  drawEdge(svg, {x:inputGuard.x+inputGuard.w, y:inputGuard.y+55}, {x:query.x, y:query.y+query.h/2}, {color:r, delay:"0.3s"});
+  drawNode(svg, orchestrator, orch);
+
+  drawNode(svg, query, r);
+  drawEdge(svg, {x:query.x+query.w, y:query.y+query.h/2}, {x:retrieval.x, y:retrieval.y+retrieval.h/2}, {color:r});
+  drawNode(svg, retrieval, r);
+  drawEdge(svg, {x:retrieval.x+retrieval.w, y:retrieval.y+retrieval.h/2}, {x:contextGuard.x, y:contextGuard.y+contextGuard.h/2}, {color:guard});
+  drawNode(svg, contextGuard, guard);
+
+  drawEdge(svg, {x:query.x+query.w/2, y:query.y+query.h}, {x:assembly.x+assembly.w/2, y:assembly.y}, {color:r, dashed:true, noFlow:true});
+  drawEdge(svg, {x:contextGuard.x+contextGuard.w/2, y:contextGuard.y+contextGuard.h}, {x:generation.x+generation.w+ -0, y:generation.y}, {color:guard, dashed:true, noFlow:true});
+  drawNode(svg, assembly, r);
+  drawEdge(svg, {x:assembly.x+assembly.w, y:assembly.y+assembly.h/2}, {x:generation.x, y:generation.y+generation.h/2}, {color:r});
+  drawNode(svg, generation, r);
+  drawEdge(svg, {x:generation.x+generation.w, y:generation.y+generation.h/2}, {x:outputGuard.x, y:outputGuard.y+outputGuard.h/2}, {color:guard});
+  drawNode(svg, outputGuard, guard);
+
+  drawEdge(svg, {x:outputGuard.x+outputGuard.w, y:outputGuard.y+outputGuard.h/2}, {x:response.x, y:response.y+response.h/2}, {color:r});
+  drawNode(svg, response, r);
+
+  // orchestrator governs both rows (dashed control lines)
+  drawEdge(svg, {x:orchestrator.x+orchestrator.w/2, y:orchestrator.y+orchestrator.h}, {x:retrieval.x+retrieval.w/2, y:retrieval.y}, {color:orch, dashed:true, noFlow:true, curve:0.3});
+  drawEdge(svg, {x:orchestrator.x+orchestrator.w/2, y:orchestrator.y+orchestrator.h}, {x:generation.x+generation.w/2, y:generation.y}, {color:orch, dashed:true, noFlow:true, curve:0.2});
+})();
+
+/* ---------------- CONTINUOUS LOOP (LAYER 11) ---------------- */
+(function(){
+  const svg = document.getElementById("svg-loop");
+  const eval_ = "#a3c94f", obs = "#e0a23d";
+
+  const retrievalEval = {x:10, y:20, w:200, h:70, label:"Retrieval Evaluator", sub:"Precision/Recall@K · negatives", tooltip:"Measures Layer 7 in isolation, including unanswerable queries."};
+  const genEval = {x:230, y:20, w:200, h:70, label:"Generation Evaluator", sub:"groundedness · correctness · citations", tooltip:"Measures Layer 9 output quality — grounded is not the same as correct."};
+  const tracing = {x:450, y:20, w:220, h:70, label:"Tracing / Metrics", sub:"trace_id · versions · latency · cost · guard decisions", tooltip:"Makes every request reconstructable without becoming a second copy of the knowledge base."};
+  const feedback = {x:690, y:20, w:200, h:70, label:"Feedback", sub:"classify · dedupe · route", tooltip:"Thumbs-down is a symptom — routed to eval set, retrieval fix, or prompt fix, rarely straight to fine-tuning."};
+  const regression = {x:910, y:20, w:220, h:70, label:"Regression → Release Gate", sub:"shadow/canary · risk-specific thresholds", tooltip:"Every meaningful change is compared against the production baseline before rollout."};
+
+  [retrievalEval, genEval, tracing, feedback, regression].forEach((n,i,arr)=>{
+    drawNode(svg, n, i<2?eval_:obs);
+    if(i<arr.length-1){ drawEdge(svg, {x:n.x+n.w, y:n.y+n.h/2}, {x:arr[i+1].x, y:arr[i+1].y+arr[i+1].h/2}, {color: i<1?eval_:obs}); }
+  });
+
+  // feedback loop back up into orchestration + generation (dashed, long curve)
+  const loopBack = {x:400, y:140, w:340, h:60, label:"Closes back into Layer 10 (routing) and Layer 9 (model choice)", sub:"quality signal, not a runtime dependency", tooltip:"Evaluation results inform release gates and routing thresholds — they do not sit inline on the request path."};
+  drawNode(svg, loopBack, obs);
+  drawEdge(svg, {x:regression.x+regression.w/2, y:regression.y+regression.h}, {x:loopBack.x+loopBack.w, y:loopBack.y+loopBack.h/2}, {color:obs, dashed:true, noFlow:true, curve:0.5});
+  drawEdge(svg, {x:loopBack.x, y:loopBack.y+loopBack.h/2}, {x:retrievalEval.x, y:retrievalEval.y+retrievalEval.h}, {color:obs, dashed:true, noFlow:true, curve:0.5});
+})();
+</script>
+</body>
+</html>
