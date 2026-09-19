@@ -66,6 +66,8 @@
   .legend-item{ display:flex; align-items:center; gap: 8px; font-size: 12.5px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
   .legend-item .sw{ width: 12px; height: 12px; border-radius: 3px; flex-shrink:0; }
   .foot{ margin-top: 30px; color: var(--muted); font-size: 12.5px; font-family: 'JetBrains Mono', monospace; line-height: 1.6; }
+  .back-link{ display:inline-block; margin-bottom: 22px; color: var(--muted); font-family:'JetBrains Mono', monospace; font-size: 12.5px; text-decoration:none; border-bottom: 1px solid transparent; }
+  .back-link:hover{ color: var(--text); border-bottom-color: var(--line); }
 
   .node-box{ fill: var(--bg-soft); stroke-width: 1.4; rx:7; }
   .node-title{ fill: var(--text); font-family:'Space Grotesk', sans-serif; font-weight:600; }
@@ -80,6 +82,8 @@
 </head>
 <body>
 <div class="wrap">
+
+  <a class="back-link" href="./">&larr; RAG in Production</a>
 
   <div class="masthead">
     <div class="kicker">FULL SERIES — PHASE 1 + PHASE 2 + PHASE 3 · TWELVE LAYERS, ONE FLOW</div>
