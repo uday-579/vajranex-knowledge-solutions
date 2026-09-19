@@ -19,8 +19,10 @@ layer at a time, from the source connector to the response a user actually reads
   <br>Query processing, retrieval &amp; re-ranking, context assembly, and generation under a live latency budget.
 - [Phase 3 — Control, Evaluation &amp; Guardrails](./rag-production-phase3-control-evaluation-guardrails.html)
   <br>Orchestration, caching, evaluation, tracing, feedback, and guardrails.
+- Phase 4 — coming soon
+  <br>Security, end-to-end and layer-by-layer.
 - [↳ End-to-End Architecture Diagram](./rag-architecture-end-to-end.html)
-  <br>All three phases combined into one continuous knowledge-flow / request-flow / control-loop diagram.
+  <br>All three pipeline phases combined into one continuous knowledge-flow / request-flow / control-loop diagram.
 
 ---
 

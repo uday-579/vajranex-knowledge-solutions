@@ -138,6 +138,7 @@ Phase 2 gets a query from the user's mouth to a validated response — query pro
 <nav class="pager">
   <a href="./rag-production-phase1-data-ingestion-storage.html">← Phase 1: The Data Backbone Nobody Demos</a>
   <a href="../">↑ RAG in Production</a>
+  <a href="./rag-production-phase3-control-evaluation-guardrails.html">Phase 3: Control, Evaluation &amp; Guardrails →</a>
 </nav>
 
 ## Comments
